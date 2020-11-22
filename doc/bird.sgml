@@ -1942,6 +1942,7 @@ protocol babel [<name>] {
 			algorithm ( hmac sha1 | hmac sha256 | hmac sha384 |
 	hmac sha512 | blake2s128 | blake2s256 | blake2b256 | blake2b512 );
 		};
+		ipv4 via ipv6 <switch>;
 	};
 }
 </code>
@@ -2050,6 +2051,11 @@ protocol babel [<name>] {
       protocol will only accept HMAC-based algorithms or one of the Blake
       algorithms, and the length of the supplied password string must match the
       key size used by the selected algorithm.
+
+      <tag><label id="babel-ipv4-via-ipv6">ipv4 via ipv6 <m/switch/</tag>
+      If enabled, Bird will accept and emit IPv4-via-IPv6 routes when IPv4
+      addresses are absent from the interface as described in RFC9229.
+      Default: yes.
 </descrip>
 
 <sect1>Attributes

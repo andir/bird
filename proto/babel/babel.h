@@ -114,6 +114,7 @@ enum babel_ae_type {
   BABEL_AE_IP4			= 1,
   BABEL_AE_IP6			= 2,
   BABEL_AE_IP6_LL		= 3,
+  BABEL_AE_IPV4_VIA_IPV6	= 4,
   BABEL_AE_MAX
 };
 
@@ -153,6 +154,8 @@ struct babel_iface_config {
   uint mac_num_keys;			/* Number of configured HMAC keys */
   uint mac_total_len;			/* Total digest length for all configured keys */
   list *passwords;			/* Passwords for authentication */
+
+  u8 ip4_via_ip6;			/* Enable IPv4 via IPv6 */
 };
 
 struct babel_proto {

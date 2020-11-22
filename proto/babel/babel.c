@@ -998,8 +998,17 @@ babel_send_update_(struct babel_iface *ifa, btime changed, struct fib *rtable)
     msg.update.router_id = e->router_id;
     net_copy(&msg.update.net, e->n.addr);
 
-    msg.update.next_hop = ((e->n.addr->type == NET_IP4) ?
-			   ifa->next_hop_ip4 : ifa->next_hop_ip6);
+    if (e->n.addr->type == NET_IP4) {
+      /* Always prefer v4 nexthop if set */
+      if(!ipa_zero(ifa->next_hop_ip4))
+        msg.update.next_hop = ifa->next_hop_ip4;
+
+      /* Only send v4-via-v6 if enabled */
+      else if (ifa->cf->ip4_via_ip6)
+        msg.update.next_hop = ifa->next_hop_ip6;
+    } else {
+      msg.update.next_hop = ifa->next_hop_ip6;
+    }
 
     /* Do not send route if next hop is unknown, e.g. no configured IPv4 address */
     if (ipa_zero(msg.update.next_hop))
@@ -1291,6 +1300,12 @@ babel_handle_update(union babel_msg *m, struct babel_iface *ifa)
     }
 
     /* Done with retractions */
+    return;
+  }
+
+  /* Reject IPv4 via IPv6 routes if disabled */
+  if (!ifa->cf->ip4_via_ip6 && msg->net.type == NET_IP4 && ipa_is_ip6(msg->next_hop)) {
+    DBG("Babel: Ignoring disabled IPv4 via IPv6 route.\n");
     return;
   }
 
@@ -1723,7 +1738,7 @@ babel_iface_update_addr4(struct babel_iface *ifa)
   ip_addr addr4 = ifa->iface->addr4 ? ifa->iface->addr4->ip : IPA_NONE;
   ifa->next_hop_ip4 = ipa_nonzero(ifa->cf->next_hop_ip4) ? ifa->cf->next_hop_ip4 : addr4;
 
-  if (ipa_zero(ifa->next_hop_ip4) && p->ip4_channel)
+  if (ipa_zero(ifa->next_hop_ip4) && p->ip4_channel && !ifa->cf->ip4_via_ip6)
     log(L_WARN "%s: Missing IPv4 next hop address for %s", p->p.name, ifa->ifname);
 
   if (ifa->up)
@@ -2118,8 +2133,8 @@ babel_show_interfaces(struct proto *P, const char *iff)
   }
 
   cli_msg(-1023, "%s:", p->p.name);
-  cli_msg(-1023, "%-10s %-6s %-5s %7s %6s %7s %-15s %s",
-	  "Interface", "State", "Auth", "RX cost", "Nbrs", "Timer",
+  cli_msg(-1023, "%-10s %-6s %-5s %-12s %7s %6s %7s %-15s %s",
+	  "Interface", "State", "Auth", "IPv4 via Ip6", "RX cost", "Nbrs", "Timer",
 	  "Next hop (v4)", "Next hop (v6)");
 
   WALK_LIST(ifa, p->interfaces)
@@ -2132,10 +2147,11 @@ babel_show_interfaces(struct proto *P, const char *iff)
 	nbrs++;
 
     btime timer = MIN(ifa->next_regular, ifa->next_hello) - current_time();
-    cli_msg(-1023, "%-10s %-6s %-5s %7u %6u %7t %-15I %I",
+    cli_msg(-1023, "%-10s %-6s %-5s %-12s %7u %6u %7t %-15I %I",
 	    ifa->iface->name, (ifa->up ? "Up" : "Down"),
             (ifa->cf->auth_type == BABEL_AUTH_MAC ?
              (ifa->cf->auth_permissive ? "Perm" : "Yes") : "No"),
+	    (ifa->cf->ip4_via_ip6 ? "Yes" : "No"),
 	    ifa->cf->rxcost, nbrs, MAX(timer, 0),
 	    ifa->next_hop_ip4, ifa->next_hop_ip6);
   }
